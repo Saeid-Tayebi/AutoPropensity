@@ -54,6 +54,22 @@ p, avg_ll, per_ll = ap.score_and_ll(pm, X_test, A_test)
 
 ---
 
+## Installation
+
+You can install the package from PyPI using:
+
+```bash
+pip install auto-propensity
+```
+
+Alternatively, install directly from GitHub with:
+
+```bash
+pip install git+https://github.com/Saeid-Tayebi/AutoPropensity.git
+```
+
+---
+
 ## Visualization
 
 You can enable detailed tracing of the tuning process by setting `builder.trace_on = True`. This allows you to visualize and compare candidate models using the provided plotting functions:
