@@ -1,4 +1,4 @@
-# Propensity Model Builder (Auto-select p(A|X) by Validation Log-Likelihood)
+# AutoPropensity — Auto-select p(A|X) by Validation Log-Likelihood
 
 **Goal:** Given a dataset with states `X` and actions `A` (either **discrete** or **continuous**), this library
 **automatically searches** a small, sensible family of propensity models and selects the configuration that **maximizes
@@ -39,8 +39,8 @@ For discrete models, “closer to 0” is better. For continuous densities, “h
 ## Quick Start
 
 ```python
-from propensity_builder import PropensityModelBuilder
-from model_creator_from_config import PropensityModel
+import auto_propensity as ap
+from auto_propensity import PropensityModelBuilder
 
 # X: (n, d_x), A: (n,) for discrete or (n, d_a)/(n,) for continuous
 builder = PropensityModelBuilder(X, A, action_type='discrete' or 'continuous', test_size=0.25, random_state=42)
@@ -48,8 +48,8 @@ result = builder.tune(verbose=False)
 best_cfg = result["config"]
 
 # Rebuild a fresh model on any subset (no leakage)
-pm = PropensityModel.from_config(X_train, A_train, best_cfg, random_state=42)
-p = pm.score(X_test, A_test)  # propensities (discrete) or densities (continuous)
+pm = ap.make_from_config(X_train, A_train, best_cfg, random_state=42)
+p, avg_ll, per_ll = ap.score_and_ll(pm, X_test, A_test)
 ```
 
 ---
@@ -67,9 +67,16 @@ Example usage:
 builder.trace_on = True
 result = builder.tune(verbose=False)
 
-# Generate and save plots (images saved to 'figs/' directory)
-builder.plot_family_variants(save_dir='figs/')
-builder.plot_best_per_family(save_dir='figs/')
+import os, matplotlib.pyplot as plt
+os.makedirs("figs", exist_ok=True)
+
+fig1 = builder.plot_family_variants()
+fig1.savefig("figs/variants_discrete.png", dpi=150, bbox_inches="tight")
+plt.close(fig1)
+
+fig2 = builder.plot_best_per_family()
+fig2.savefig("figs/best_per_family_discrete.png", dpi=150, bbox_inches="tight")
+plt.close(fig2)
 ```
 
 ---
