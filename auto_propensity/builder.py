@@ -1,51 +1,15 @@
 
 """
-Big View
-            X,A --(builder.tune)--> best_config
-                    |
-                    +--(PropensityModel.from_config on any subset)--> model --> score(Xi,Ai)
+PropensityModelBuilder — pick a propensity model by validation log-likelihood (LL), then
+rebuild that model on any dataset and score p(A|X). Works for DISCRETE and CONTINUOUS A.
 
-         
-PropensityModelBuilder — Quick Usage Hint
-=========================================
-
-Goal: pick a propensity model config by validation log-likelihood (LL), then
-build a fresh model on new data from that config and score p(A|X).
-
-Unified API (works for DISCRETE and CONTINUOUS A)
--------------------------------------------------
-from helpers.propensity_model.propensity_builder import PropensityModelBuilder
-from helpers.propensity_model.model_creator_from_config import PropensityModel
-
-# 1) Tune once on your (X, A)
+Quick Start
+-----------
 builder = PropensityModelBuilder(X, A, action_type='discrete' or 'continuous', test_size=0.25, random_state=42)
-builder.trace_on = True                # optional: keep a leaderboard of candidates
 res = builder.tune(verbose=False)
-print(builder.summarize())             # shows baseline/good/excellent and rating
-
-# 2) Train a FRESH model on any dataset using the best config (no leakage)
 best_cfg = res["config"]
-pm = PropensityModel.from_config(X_new_train, A_new_train, best_cfg, random_state=42)
-
-# 3) Score propensities/densities on new points
-p = pm.score(X_new_test, A_new_test)
-
-Optional visuals & tables
--------------------------
-fig1 = builder.plot_family_variants()      # all variants (+ baseline/good/excellent lines)
-fig2 = builder.plot_best_per_family()      # best of each predictive model (+ lines)
-print(builder.candidates_table(top_k=10))  # simple leaderboard (needs trace_on=True)
-
-Key Methods (what they do)
---------------------------
-- tune(): grid-searches scaling/dim-reduction/model families; selects best by val LL.
-- summarize(): 1-pager with chosen config + baseline/good/excellent thresholds + rating.
-- candidates_table(top_k): top-k leaderboard from the tuning trace.
-- plot_family_variants(family=None, top_k=None): bars for all tried variants (+ lines).
-- plot_best_per_family(): bars for the best candidate of each predictive model (+ lines).
-- build_model_from_config(X, A, cfg): returns a PropensityModel (unified API).
-- build_artifacts_from_config(X, A, cfg): returns raw artifacts dict (legacy/advanced).
-- score_with(artifacts, action_type, d_a, X, A): stateless scorer for artifacts (legacy).
+pm = PropensityModel.from_config(X_train, A_train, best_cfg, random_state=42)
+p = pm.score(X_test, A_test)
 """
 import numpy as np
 from dataclasses import dataclass, asdict
@@ -206,57 +170,13 @@ class PropensityModelBuilder:
              allow_ann: bool = False,
              verbose: bool = True) -> Dict[str, Any]:
         """
-        Algorithm Overview for tune():
+        Grid-search over (scaler, optional dim-reduction, predictive model family & hyperparameters).
+        Select the configuration with the highest validation log-likelihood and store its fitted artifacts.
 
-        ┌───────────────────────────────────────┐
-        │ Start: Receive X, A, action_type       │
-        └───────────────────────────────────────┘
-                        │
-                        ▼
-         ┌────────────────────────────────┐
-         │ Determine candidate model types │
-         │   - Discrete: LR, RF, ANN, ...  │
-         │   - Continuous: PLS, GP, ANN... │
-         └────────────────────────────────┘
-                        │
-                        ▼
-        ┌──────────────────────────────────┐
-        │ For EACH model family:            │
-        │   e.g., Logistic Regression       │
-        │   e.g., PLS Regression            │
-        │   e.g., Gaussian Process          │
-        └──────────────────────────────────┘
-                        │
-                        ▼
-     ┌────────────────────────────────────────┐
-     │   For EACH hyperparameter combination  │
-     │     - Apply scaling? yes/no            │
-     │     - Apply dim. reduction? yes/no     │
-     │     - Set model-specific params        │
-     └────────────────────────────────────────┘
-                        │
-                        ▼
-        ┌─────────────────────────────────┐
-        │ Train model on train split       │
-        │ Evaluate on validation split     │
-        │ Compute validation log-likelihood│
-        └─────────────────────────────────┘
-                        │
-                        ▼
-       ┌──────────────────────────────────┐
-       │ Keep best config for this family  │
-       └──────────────────────────────────┘
-                        │
-                        ▼
-   ┌───────────────────────────────────────────┐
-   │ After all families: compare best of each  │
-   │ Select global best config (best of best)  │
-   └───────────────────────────────────────────┘
-                        │
-                        ▼
-        ┌─────────────────────────┐
-        │ Return best config + LL │
-        └─────────────────────────┘
+        Returns
+        -------
+        dict
+            {'config': <PropensityConfig as dict>, 'val_loglik': <float>}
         """
         candidates: List[Tuple[PropensityConfig, Dict[str, Any]]] = []
 
@@ -875,7 +795,7 @@ class PropensityModelBuilder:
                                 A_new_dataset: np.ndarray,
                                 config: "PropensityConfig | Dict[str, Any]"):
         """Return a PropensityModel (standalone) trained fresh on (X_new_dataset, A_new_dataset)."""
-        from .model_creator_from_config import PropensityModel  # local import avoids circular refs
+        from auto_propensity.model import PropensityModel  # local import avoids circular refs
         cfg = config if isinstance(config, PropensityConfig) else PropensityConfig(**config)
         fitted, meta, cfg_out = self._fit_core(
             X=np.asarray(X_new_dataset),
